@@ -22,7 +22,7 @@ jobs:
       GIT_RELEASE_ENABLED: 'true'
 
       GIT_PACKAGE_ENABLED: 'true'
-      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/Bijan-Ghasemi/index.json
+      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
       
       NUGET_PACKAGE_ENABLED: 'true'
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
