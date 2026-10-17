@@ -1,4 +1,5 @@
-# create file in repository => .github\workflows\main.yml # Create variables in repository
+# create file in repository => .github\workflows\main.yml
+# Create variables in repository
 
 name: Build, Test & Publish (All Secrets)
 
@@ -11,9 +12,9 @@ jobs:
   build:
     permissions:
       contents: write
-      packages: write    
+      packages: write
       id-token: write  # enable GitHub OIDC token issuance for this job
-      
+
     runs-on: windows-latest
 
     env:
@@ -22,21 +23,22 @@ jobs:
       GIT_RELEASE_ENABLED: 'true'
 
       GIT_PACKAGE_ENABLED: 'true'
-      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/Bijan-Ghasemi/index.json
-      
+      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+
       NUGET_PACKAGE_ENABLED: 'true'
-      NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
+      NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json
 
     steps:
       # Build your artifacts/my-sdk.nupkg package here
-    
+
       # Get a short-lived NuGet API key
       - name: NuGet login (OIDC → temp API key)
+        if: ${{ env.NUGET_PACKAGE_ENABLED == 'true' }}
         uses: NuGet/login@v1
         id: login
         with:
           user: ${{ secrets.NUGET_USER }}
-       
+
       # --- 1. Checkout Code ---
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -66,43 +68,96 @@ jobs:
       # --- 6. Pack NuGet Package (PowerShell compatible) ---
       - name: Pack NuGet package
         working-directory: src
+        shell: pwsh
         run: |
           # استخراج نسخه از Git Tag (v1.0.0 -> 1.0.0)
-          $version = "${env:GITHUB_REF_NAME}".TrimStart("v")
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
           Write-Host "📦 Package Version: $version"
-          
+
           # Pack با نسخه و RepositoryUrl
           dotnet pack --configuration Release `
             -p:PackageVersion=$version `
-            -p:RepositoryUrl="https://github.com/${{ github.repository }}" `
+            -p:RepositoryUrl="https://github.com/$env:GITHUB_REPOSITORY" `
             -o ../nuget
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "NuGet pack failed."
+          }
+
+          # بررسی اینکه فایل بسته تولید شده باشد
+          if (-not (Get-ChildItem -Path "../nuget" -Filter "*.nupkg" -File)) {
+            throw "No NuGet package was generated."
+          }
+
       # --- 7. Publish to GitHub Packages ---
       - name: Publish to GitHub Packages
         if: ${{ env.GIT_PACKAGE_ENABLED == 'true' }}
         working-directory: nuget
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           Write-Host "📦 Publishing to GitHub Packages..."
+          Write-Host "Repository: $env:GITHUB_REPOSITORY"
+          Write-Host "Package source: $env:GIT_PACKAGE_SOURCE"
+
+          # Use GITHUB_TOKEN with the packages: write permission
           dotnet nuget push "*.nupkg" `
-            --source "${{ env.GIT_PACKAGE_SOURCE }}" `
-            --api-key ${{ secrets.GITHUB_TOKEN }} `
+            --source "$env:GIT_PACKAGE_SOURCE" `
+            --api-key "$env:GH_TOKEN" `
             --skip-duplicate
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Publishing to GitHub Packages failed."
+          }
 
       # --- 8. Publish to NuGet.org ---
       - name: Publish to NuGet.org
         if: ${{ env.NUGET_PACKAGE_ENABLED == 'true' }}
         working-directory: nuget
+        shell: pwsh
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           Write-Host "📦 Publishing to NuGet.org..."
+
+          # Ensure the temporary API key was provided by the OIDC login step
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) {
+            throw "NuGet.org API key was not provided by NuGet/login."
+          }
+
           dotnet nuget push "*.nupkg" `
-            --source  "${{ env.NUGET_PACKAGE_SOURCE }}" `
-            --api-key ${{ steps.login.outputs.NUGET_API_KEY }} `
+            --source "$env:NUGET_PACKAGE_SOURCE" `
+            --api-key "$env:NUGET_API_KEY" `
             --skip-duplicate
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "Publishing to NuGet.org failed."
+          }
 
       # --- 9. Create ZIP for GitHub Release ---
       - name: Create ZIP of publish folder
+        shell: pwsh
         run: |
-          mkdir publish
-          powershell Compress-Archive -Path "src\**\bin\Release\*" -DestinationPath publish/release.zip
+          # Create the publish folder
+          New-Item -ItemType Directory -Force -Path "publish" | Out-Null
+
+          # Find files in Release output directories
+          $files = Get-ChildItem -Path "src" -File -Recurse |
+            Where-Object {
+              $_.FullName -match '[\\/]bin[\\/]Release[\\/]' -and
+              $_.FullName -notmatch '[\\/]ref[\\/]' 
+            }
+
+          if (-not $files) {
+            throw "No Release output files were found to include in the ZIP."
+          }
+
+          # Create ZIP from the Release output files
+          Compress-Archive `
+            -Path $files.FullName `
+            -DestinationPath "publish/release.zip" `
+            -Force
 
       # --- 10. Create GitHub Release ---
       - name: Create GitHub Release
@@ -112,3 +167,4 @@ jobs:
           files: |
             publish/release.zip
             nuget/*.nupkg
+          generate_release_notes: true
