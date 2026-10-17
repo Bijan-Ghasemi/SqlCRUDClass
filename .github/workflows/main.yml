@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     permissions:
+      contents: write
+      packages: write    
       id-token: write  # enable GitHub OIDC token issuance for this job
       
     runs-on: windows-latest
@@ -82,7 +84,7 @@ jobs:
           Write-Host "📦 Publishing to GitHub Packages..."
           dotnet nuget push "*.nupkg" `
             --source "${{ env.GIT_PACKAGE_SOURCE }}" `
-            --api-key ${{ secrets.GIT_TOKEN }} `
+            --api-key ${{ secrets.GITHUB_TOKEN }} `
             --skip-duplicate
 
       # --- 8. Publish to NuGet.org ---
