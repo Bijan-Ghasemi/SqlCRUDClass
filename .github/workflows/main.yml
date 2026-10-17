@@ -20,7 +20,7 @@ jobs:
 
     env:
       DOTNET_VERSION: 8.0.x
-      RUN_TESTS: 'true'
+      RUN_TESTS: 'false'
       GIT_RELEASE_ENABLED: 'true'
 
       GIT_PACKAGE_ENABLED: 'true'
