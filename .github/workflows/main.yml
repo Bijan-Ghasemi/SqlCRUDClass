@@ -13,6 +13,7 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write  # enable GitHub OIDC token issuance for this job
 
 jobs:
   build:
@@ -30,6 +31,14 @@ jobs:
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
 
     steps:
+    
+      # Get a short-lived NuGet API key
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+    
       # --- 1. Checkout Code ---
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,7 +98,7 @@ jobs:
           Write-Host "📦 Publishing to NuGet.org..."
           dotnet nuget push "*.nupkg" `
             --source  "${{ env.NUGET_PACKAGE_SOURCE }}" `
-            --api-key ${{ secrets.NUGET_TOKEN }} `
+            --api-key ${{steps.login.outputs.NUGET_API_KEY}} `
             --skip-duplicate
 
       # --- 9. Create ZIP for GitHub Release ---
