@@ -17,6 +17,8 @@ namespace Repository
         internal IDbTransaction Transaction;
         private string _ConnectionString;
         private int _TransactionCount;
+        private readonly bool _ownsConnection;
+        private Thread _transactionOwner;
 
 
         public int TransactionCount 
@@ -33,6 +35,7 @@ namespace Repository
                 throw new Exception("Connection string is empty.");
             }
             _ConnectionString = connectionString;
+            _ownsConnection = true;
         }
 
         public Repository(IDbConnection dbConnection)
@@ -42,6 +45,7 @@ namespace Repository
                 throw new Exception("Connection is null.");
             }
             this.Connection = dbConnection;
+            _ownsConnection = false;
         }
 
         internal void OpenConnection()
@@ -51,22 +55,16 @@ namespace Repository
                     Connection = new SqlConnection(_ConnectionString);
                 }
 
-                if (Connection.State == ConnectionState.Open)
+                if (Connection.State != ConnectionState.Open)
                 {
-                    Connection.Close();
+                    Connection.Open();
                 }
-                Connection.Open();
 
             
         }
         internal void CloseConnection()
         {
-                if (Connection == null)
-                {
-                    throw new Exception("Connection is null.");
-                }
-
-                if (Connection.State == ConnectionState.Open)
+                if (_ownsConnection && Connection != null && Connection.State == ConnectionState.Open)
                 {
                     Connection.Close();
                 }
@@ -76,80 +74,98 @@ namespace Repository
         public bool BeginTransaction()
         {
             Monitor.Enter(this);
-            if (Transaction is null)
+            try
             {
-                OpenConnection();
-                Transaction = Connection.BeginTransaction();
+                if (Transaction is null)
+                {
+                    OpenConnection();
+                    Transaction = Connection.BeginTransaction();
+                    _transactionOwner = Thread.CurrentThread;
+                }
+                _TransactionCount++;
+                return true;
             }
-            _TransactionCount++;
-            return true;
-
-
+            catch
+            {
+                if (Transaction is null)
+                {
+                    CloseConnection();
+                }
+                _transactionOwner = null;
+                Monitor.Exit(this);
+                throw;
+            }
         }
 
         public bool CommitTransaction()
         {
-
-            if (_TransactionCount == 0)
+            if (_transactionOwner != Thread.CurrentThread)
             {
-                throw new Exception("You must be run begintransaction first!");
+                throw new InvalidOperationException("The current thread does not own the transaction.");
             }
-            if (Transaction is null)
-            {
-                throw new Exception("Developer Must be checked!");
-            }
-            _TransactionCount--;
-            if (_TransactionCount == 0)
-            {
-                Transaction.Commit();
-                Transaction = null;
-                CloseConnection();
-            }
-            Monitor.Exit(this);
-            return true;
-
-
-        }
-
-        public bool RollbackTransaction()
-        {
             try
             {
-                if (_TransactionCount == 0)
+                if (_TransactionCount == 0 || Transaction is null)
                 {
-                    throw new Exception("You must be run begintransaction first!");
-                }
-                if (Transaction is null)
-                {
-                    throw new Exception("Developer Must be checked!");
+                    throw new InvalidOperationException("You must call BeginTransaction first.");
                 }
                 _TransactionCount--;
                 if (_TransactionCount == 0)
                 {
-                    Transaction.Rollback();
-                    Transaction = null;
-                    CloseConnection();
+                    try
+                    {
+                        Transaction.Commit();
+                    }
+                    finally
+                    {
+                        Transaction.Dispose();
+                        Transaction = null;
+                        _transactionOwner = null;
+                        CloseConnection();
+                    }
                 }
-                else
-                {
-                    throw new Exception("Inner Transaction Rollback.");
-                }
-
                 return true;
+            }
+            finally
+            {
+                Monitor.Exit(this);
+            }
+        }
 
+        public bool RollbackTransaction()
+        {
+            if (_transactionOwner != Thread.CurrentThread)
+            {
+                throw new InvalidOperationException("The current thread does not own the transaction.");
+            }
+            if (_TransactionCount == 0 || Transaction is null)
+            {
+                throw new InvalidOperationException("You must call BeginTransaction first.");
+            }
+            var lockCount = _TransactionCount;
+            try
+            {
+                Transaction.Rollback();
             }
             finally
             {
                 try
                 {
-                    Monitor.Exit(this);
+                    Transaction.Dispose();
                 }
-                catch (Exception)
+                finally
                 {
-
-                    //throw;
+                    Transaction = null;
+                    _transactionOwner = null;
+                    _TransactionCount = 0;
+                    CloseConnection();
+                    for (var i = 0; i < lockCount; i++)
+                    {
+                        Monitor.Exit(this);
+                    }
                 }
             }
+            return true;
         }
 
         private GeneralFactory<T> GetGeneralFactory<T>()
@@ -164,12 +180,37 @@ namespace Repository
             return (GeneralFactory<T>)oGeneralFactory;
         }
 
+        private TResult ExecuteWithConnectionCleanup<TResult>(Func<TResult> operation)
+        {
+            try
+            {
+                return operation();
+            }
+            finally
+            {
+                if (Transaction is null)
+                {
+                    CloseConnection();
+                }
+            }
+        }
+
         public bool Save<T>(T o, int commandTimeout = 30)
         {
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.Save(ref o,"",null, commandTimeout );
+                try
+                {
+                    return oGeneralFactory.Save(ref o,"",null, commandTimeout );
+                }
+                finally
+                {
+                    if (Transaction is null)
+                    {
+                        CloseConnection();
+                    }
+                }
             }
 
 
@@ -179,7 +220,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.Delete(o, commandTimeout);
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.Delete(o, commandTimeout));
 
             }
         }
@@ -189,7 +230,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.GetByID(ID, withLock, commandTimeout);
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.GetByID(ID, withLock, commandTimeout));
 
             }
         }
@@ -199,7 +240,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.GetAll(commandTimeout);
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.GetAll(commandTimeout));
 
             }
         }
@@ -352,7 +393,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.Find(Filter, orderBy, withLock, Parameters, FieldNames, commandTimeout);
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.Find(Filter, orderBy, withLock, Parameters, FieldNames, commandTimeout));
 
             }
         }
@@ -362,7 +403,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.FindFirst(Filter, orderBy, withLock, Parameters, FieldNames, commandTimeout);
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.FindFirst(Filter, orderBy, withLock, Parameters, FieldNames, commandTimeout));
 
             }
         }
@@ -372,7 +413,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.DeleteList(Filter, Parameters, commandTimeout);
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.DeleteList(Filter, Parameters, commandTimeout));
 
             }
 
@@ -383,7 +424,17 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                return oGeneralFactory.Save(ref o, Filter, Parameters, commandTimeout);
+                try
+                {
+                    return oGeneralFactory.Save(ref o, Filter, Parameters, commandTimeout);
+                }
+                finally
+                {
+                    if (Transaction is null)
+                    {
+                        CloseConnection();
+                    }
+                }
             }
 
         }
@@ -393,8 +444,7 @@ namespace Repository
             lock (this)
             {
                 var oGeneralFactory = GetGeneralFactory<T>();
-                oGeneralFactory.SaveList(list, basePropertyName, commandTimeout);
-                return true;
+                return ExecuteWithConnectionCleanup(() => oGeneralFactory.SaveList(list, basePropertyName, commandTimeout));
 
             }
         }

@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlCRUDRepository", "Reposi
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlCRUDRepository.Domain", "Repository.Domain\SqlCRUDRepository.Domain.csproj", "{8ECD4A61-63A9-44BB-B8A7-0D315AF24950}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlCRUDRepository.Tests", "..\tests\SqlCRUDRepository.Tests\SqlCRUDRepository.Tests.csproj", "{B96EA51D-1B0D-41B6-9BF9-0CC01B979ADD}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8C811888-96C7-47F3-AF6F-52B192747B19}"
 EndProject
 Global
@@ -23,6 +25,10 @@ Global
 		{8ECD4A61-63A9-44BB-B8A7-0D315AF24950}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8ECD4A61-63A9-44BB-B8A7-0D315AF24950}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8ECD4A61-63A9-44BB-B8A7-0D315AF24950}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B96EA51D-1B0D-41B6-9BF9-0CC01B979ADD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B96EA51D-1B0D-41B6-9BF9-0CC01B979ADD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B96EA51D-1B0D-41B6-9BF9-0CC01B979ADD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B96EA51D-1B0D-41B6-9BF9-0CC01B979ADD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -6,6 +6,7 @@ using System.Dynamic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Dapper;
 using Repository.Domain;
@@ -33,6 +34,8 @@ namespace Repository
             TableInfo = GetTableInfo();
             _tableName = TableInfo.TableName;
             _keycolumnname = TableInfo.keyColumnName;
+            ValidateIdentifier(_tableName, "table name", true);
+            ValidateIdentifier(_keycolumnname, "key column name", false);
             _keyIsIdentity = TableInfo.KeyIsIdentity;
             _tableType = TableInfo.TableType;
             var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
@@ -53,6 +56,7 @@ namespace Repository
                 if (IsIgnore == false)
                 {
                     if (FieldName == "") { FieldName = item.Name; }
+                    ValidateIdentifier(FieldName, "column name", false);
                     temp.Add(item.Name,FieldName);
                 }
 
@@ -159,7 +163,7 @@ namespace Repository
                     if (FieldValue != null)
                     {
                         var parameter = "o_" + FieldName;
-                        Parameters.Add(parameter, (string)FieldValue);
+                        Parameters.Add(parameter, Convert.ToString(FieldValue, System.Globalization.CultureInfo.InvariantCulture));
                         Result = Result + Columnname + " = @" + parameter + ",";
                     }
 
@@ -216,6 +220,7 @@ namespace Repository
             {
                 throw new Exception("Object is Readonly.You can not perform (Save) in this Object.");
             }
+            ValidateSqlFragment(filter, "filter");
             bool InTransaction;
             InTransaction = false;
             if (_Repository.Transaction != null)
@@ -400,6 +405,8 @@ namespace Repository
             {
                 throw new Exception("Object is Writeonly.You can not perform (Find) in this Object.");
             }
+            ValidateSqlFragment(Filter, "filter");
+            ValidateSqlFragment(orderBy, "order by");
             var dbArgs = new DynamicParameters();
             if (Parameters != null)
             {
@@ -443,6 +450,8 @@ namespace Repository
             {
                 throw new Exception("Object is Writeonly.You can not perform (FindFirst) in this Object.");
             }
+            ValidateSqlFragment(Filter, "filter");
+            ValidateSqlFragment(orderBy, "order by");
 
             var dbArgs = new DynamicParameters();
             if (Parameters != null)
@@ -707,6 +716,7 @@ namespace Repository
             {
                 throw new Exception("filter is Empty.You can not perform (Delete) in this Object.");
             }
+            ValidateSqlFragment(filter, "filter");
             bool InTransaction;
             InTransaction = false;
             if (_Repository.Transaction != null)
@@ -743,6 +753,35 @@ namespace Repository
             }
             dynamic eoDynamic = eo;
             return eoDynamic;
+        }
+
+        private static void ValidateIdentifier(string value, string name, bool allowQualifiedName)
+        {
+            var pattern = allowQualifiedName
+                ? @"^[\p{L}_][\p{L}\p{N}_]*(\.[\p{L}_][\p{L}\p{N}_]*)*$"
+                : @"^[\p{L}_][\p{L}\p{N}_]*$";
+
+            if (string.IsNullOrWhiteSpace(value) || !Regex.IsMatch(value, pattern))
+            {
+                throw new ArgumentException("Invalid " + name + ".", name);
+            }
+        }
+
+        private static void ValidateSqlFragment(string value, string name)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            // این API فقط یک عبارت شرط یا مرتب‌سازی را می‌پذیرد، نه دسته‌ای از دستورات SQL.
+            if (value.IndexOf(";", StringComparison.Ordinal) >= 0 ||
+                value.IndexOf("--", StringComparison.Ordinal) >= 0 ||
+                value.IndexOf("/*", StringComparison.Ordinal) >= 0 ||
+                value.IndexOf("*/", StringComparison.Ordinal) >= 0)
+            {
+                throw new ArgumentException("The " + name + " cannot contain SQL batch or comment delimiters.", name);
+            }
         }
 
         private enum CommandType

@@ -33,6 +33,10 @@ namespace TestWebAPI
         {
             services.AddControllers();
             var jwtTokenConfig = Configuration.GetSection("jwtTokenConfig").Get<JwtTokenConfig>();
+            if (string.IsNullOrWhiteSpace(jwtTokenConfig?.Secret))
+            {
+                throw new InvalidOperationException("jwtTokenConfig:secret must be supplied through secure configuration.");
+            }
             services.AddSingleton(jwtTokenConfig);
             services.AddAuthentication(x =>
             {
