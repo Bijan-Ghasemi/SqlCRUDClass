@@ -2,13 +2,9 @@
   "ExpandedNodes": [
     "",
     "\\src",
-    "\\src\\Repository",
-    "\\src\\Repository.Domain",
-    "\\test",
-    "\\test\\DataBase",
-    "\\test\\DataBase\\TestWebAPI",
-    "\\test\\DataBase\\TestWebAPI\\Controllers"
+    "\\tests",
+    "\\tests\\SqlCRUDRepository.Tests"
   ],
-  "SelectedNode": "\\src\\Repository.Domain\\Attributes.cs",
+  "SelectedNode": "\\tests",
   "PreviewInSolutionExplorer": false
 }
