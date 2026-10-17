@@ -30,9 +30,9 @@ jobs:
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
 
     steps:
-      # --- 1. Checkout Code ---
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      # # --- 1. Checkout Code ---
+      # - name: Checkout repository
+      #   uses: actions/checkout@v4
 
       # --- 2. Setup .NET SDK ---
       - name: Setup .NET
