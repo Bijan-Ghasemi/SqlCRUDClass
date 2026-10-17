@@ -29,6 +29,7 @@ jobs:
       GIT_PACKAGE_SOURCE: "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
       
       NUGET_PACKAGE_ENABLED: 'true'
+      NUGET_USER: BijanGhasemi
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
 
     steps:
@@ -38,7 +39,7 @@ jobs:
         uses: NuGet/login@v1
         id: login
         with:
-          user: ${{ secrets.NUGET_USER }}
+          user: ${{ env.NUGET_USER }}
     
       # --- 1. Checkout Code ---
       - name: Checkout repository
