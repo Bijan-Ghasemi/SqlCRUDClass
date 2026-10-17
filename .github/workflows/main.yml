@@ -1,13 +1,18 @@
 # create file in repository => .github\workflows\main.yml # Create variables in repository
 
-# repository secret variable # GIT_TOKEN  # NUGET_TOKEN
+# repository secret variable # NUGET_TOKEN
 
 name: Build, Test & Publish (All Secrets)
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'  # فقط وقتی تگ‌هایی مثل v1.0.0 push شوند
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   build:
@@ -15,11 +20,11 @@ jobs:
 
     env:
       DOTNET_VERSION: 8.0.x
-      RUN_TESTS: 'false'
+      RUN_TESTS: 'true'
       GIT_RELEASE_ENABLED: 'true'
 
       GIT_PACKAGE_ENABLED: 'true'
-      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/Bijan14093/index.json
+      GIT_PACKAGE_SOURCE: "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
       
       NUGET_PACKAGE_ENABLED: 'true'
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
@@ -48,7 +53,7 @@ jobs:
       # --- 5. Run Tests (Optional) ---
       - name: Run tests
         if: ${{ env.RUN_TESTS == 'true' }}
-        working-directory: test
+        working-directory: tests
         run: dotnet test --configuration Release
 
       # --- 6. Pack NuGet Package (PowerShell compatible) ---
@@ -73,7 +78,7 @@ jobs:
           Write-Host "📦 Publishing to GitHub Packages..."
           dotnet nuget push "*.nupkg" `
             --source "${{ env.GIT_PACKAGE_SOURCE }}" `
-            --api-key ${{ secrets.GIT_TOKEN }} `
+            --api-key ${{ secrets.GITHUB_TOKEN }} `
             --skip-duplicate
 
       # --- 8. Publish to NuGet.org ---
@@ -102,4 +107,4 @@ jobs:
             publish/release.zip
             nuget/*.nupkg
         env:
-          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
