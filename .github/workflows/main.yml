@@ -5,6 +5,7 @@
 name: Build, Test & Publish (All Secrets)
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'  # فقط وقتی تگ‌هایی مثل v1.0.0 push شوند
@@ -19,7 +20,7 @@ jobs:
       GIT_RELEASE_ENABLED: 'true'
 
       GIT_PACKAGE_ENABLED: 'true'
-      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/Bijan14093/index.json
+      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
       
       NUGET_PACKAGE_ENABLED: 'true'
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
