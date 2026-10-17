@@ -1,5 +1,7 @@
 # create file in repository => .github\workflows\main.yml # Create variables in repository
 
+# repository secret variable # GIT_TOKEN  # NUGET_TOKEN
+
 name: Build, Test & Publish (All Secrets)
 
 on:
@@ -9,11 +11,6 @@ on:
 
 jobs:
   build:
-    permissions:
-      contents: write
-      packages: write    
-      id-token: write  # enable GitHub OIDC token issuance for this job
-      
     runs-on: windows-latest
 
     env:
@@ -22,21 +19,12 @@ jobs:
       GIT_RELEASE_ENABLED: 'true'
 
       GIT_PACKAGE_ENABLED: 'true'
-      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+      GIT_PACKAGE_SOURCE: https://nuget.pkg.github.com/Bijan14093/index.json
       
       NUGET_PACKAGE_ENABLED: 'true'
       NUGET_PACKAGE_SOURCE: https://api.nuget.org/v3/index.json      
 
     steps:
-      # Build your artifacts/my-sdk.nupkg package here
-    
-      # Get a short-lived NuGet API key
-      - name: NuGet login (OIDC → temp API key)
-        uses: NuGet/login@v1
-        id: login
-        with:
-          user: ${{ secrets.NUGET_USER }}
-       
       # --- 1. Checkout Code ---
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -76,6 +64,7 @@ jobs:
             -p:PackageVersion=$version `
             -p:RepositoryUrl="https://github.com/${{ github.repository }}" `
             -o ../nuget
+
       # --- 7. Publish to GitHub Packages ---
       - name: Publish to GitHub Packages
         if: ${{ env.GIT_PACKAGE_ENABLED == 'true' }}
@@ -84,7 +73,7 @@ jobs:
           Write-Host "📦 Publishing to GitHub Packages..."
           dotnet nuget push "*.nupkg" `
             --source "${{ env.GIT_PACKAGE_SOURCE }}" `
-            --api-key ${{ secrets.GITHUB_TOKEN }} `
+            --api-key ${{ secrets.GIT_TOKEN }} `
             --skip-duplicate
 
       # --- 8. Publish to NuGet.org ---
@@ -95,7 +84,7 @@ jobs:
           Write-Host "📦 Publishing to NuGet.org..."
           dotnet nuget push "*.nupkg" `
             --source  "${{ env.NUGET_PACKAGE_SOURCE }}" `
-            --api-key ${{ steps.login.outputs.NUGET_API_KEY }} `
+            --api-key ${{ secrets.NUGET_TOKEN }} `
             --skip-duplicate
 
       # --- 9. Create ZIP for GitHub Release ---
@@ -112,3 +101,5 @@ jobs:
           files: |
             publish/release.zip
             nuget/*.nupkg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
