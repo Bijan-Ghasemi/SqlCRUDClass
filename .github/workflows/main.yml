@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: write
-  packages: write  # Important Note: in repository setting change access of actions to read and write 
+  packages: write  # Important Note: change repository setting and package setting,add access of actions to read and write and if exists packages , add repository to each package and add write access to repo.
   id-token: write  # enable GitHub OIDC token issuance for this job
 
 jobs:
