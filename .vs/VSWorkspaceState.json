@@ -1,10 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\src",
-    "\\tests",
-    "\\tests\\SqlCRUDRepository.Tests"
+    "\\.github",
+    "\\.github\\workflows"
   ],
-  "SelectedNode": "\\tests",
+  "SelectedNode": "\\.github\\workflows\\main.yml",
   "PreviewInSolutionExplorer": false
 }
